@@ -10,8 +10,22 @@ interface TraderCardProps {
 }
 
 const TraderCard: React.FC<TraderCardProps> = ({ trader }) => {
-  const { isFollowing, toggleFollowTrader } = useUser();
-  const following = isFollowing(trader.id);
+  const { user, updateUser } = useUser();
+
+  const isFollowing = user?.following.includes(trader.id) || false;
+
+  const handleFollowToggle = () => {
+    if (!user || !updateUser) return;
+
+    const newFollowing = isFollowing
+      ? user.following.filter(id => id !== trader.id)
+      : [...user.following, trader.id];
+
+    updateUser({
+      ...user,
+      following: newFollowing,
+    });
+  };
 
   // Determine color for return percentage
   const returnColor = trader.return_30d >= 0 ? 'text-success' : 'text-danger';
@@ -53,14 +67,14 @@ const TraderCard: React.FC<TraderCardProps> = ({ trader }) => {
             </div>
           </div>
           <button
-            onClick={() => toggleFollowTrader(trader.id)}
+            onClick={handleFollowToggle}
             className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-              following
-                ? 'bg-primary text-white'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              isFollowing
+                ? 'bg-red-500 hover:bg-red-600 text-white'
+                : 'bg-blue-500 hover:bg-blue-600 text-white'
             }`}
           >
-            {following ? 'Following' : 'Follow'}
+            {isFollowing ? 'Unfollow' : 'Follow'}
           </button>
         </div>
         

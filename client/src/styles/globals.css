@@ -2,12 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 13, 17, 23;
+  --background-end-rgb: 13, 17, 23;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+  @apply min-h-screen;
+}
+
 @layer base {
   html {
     @apply bg-gray-900 text-white;
-  }
-  body {
-    @apply min-h-screen;
   }
 }
 
@@ -32,5 +46,34 @@
   }
   .input {
     @apply bg-gray-700 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary;
+  }
+}
+
+@layer utilities {
+  .animate-slide-up {
+    animation: slide-up 2s ease-out forwards;
+  }
+
+  .scale-102 {
+    transform: scale(1.02);
+  }
+}
+
+@keyframes slide-up {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(-10px);
+  }
+  90% {
+    opacity: 1;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px);
   }
 }

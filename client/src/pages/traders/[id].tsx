@@ -1,263 +1,398 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import Layout from '@/components/Layout';
-import Image from 'next/image';
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useTraders } from '@/contexts/TraderContext';
 import { useUser } from '@/contexts/UserContext';
-import { ArrowTrendingUpIcon, ArrowTrendingDownIcon } from '@heroicons/react/24/solid';
-import { ArrowLeftIcon } from '@heroicons/react/24/outline';
-import Link from 'next/link';
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Trade } from '@/types';
+import { useSocket } from '@/contexts/SocketContext';
+import Layout from '@/components/Layout';
+import { Trade, CopySettings, Trader } from '@/types';
 
-// Generate mock chart data
-const generateChartData = (trader_id: number) => {
-  const data = [];
-  const baseValue = 1000;
-  let currentValue = baseValue;
-  
-  // Generate daily data for the past 30 days
-  for (let i = 30; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    
-    // Different volatility based on trader ID
-    const volatility = trader_id === 1 ? 0.02 : 
-                        trader_id === 2 ? 0.01 : 
-                        trader_id === 3 ? 0.03 : 
-                        trader_id === 4 ? 0.005 : 0.015;
-    
-    // Different trend based on trader ID
-    const trend = trader_id === 1 ? 0.005 : 
-                  trader_id === 2 ? 0.003 : 
-                  trader_id === 3 ? 0.008 : 
-                  trader_id === 4 ? 0.002 : 0.004;
-    
-    // Calculate daily change
-    const change = currentValue * (trend + (Math.random() - 0.5) * volatility);
-    currentValue += change;
-    
-    data.push({
-      date: date.toISOString().split('T')[0],
-      value: currentValue,
-    });
-  }
-  
-  return data;
-};
+interface ChartData {
+  timestamp: string;
+  value: number;
+}
 
-export default function TraderDetailPage() {
+const TraderDetailPage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
-  const { getTraderById, isLoading } = useTraders();
-  const { isFollowing, toggleFollowTrader } = useUser();
+  const { traders } = useTraders();
+  const { user, updateUser } = useUser();
+  const { socket, startCopyTrading, stopCopyTrading, copyPortfolioOnce } = useSocket();
   
-  const trader = getTraderById(Number(id));
-  const following = trader ? isFollowing(trader.id) : false;
-  
-  if (isLoading) {
-    return (
-      <Layout title="Loading...">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-700 rounded w-1/3 mb-4"></div>
-          <div className="h-64 bg-gray-800 rounded mb-6"></div>
-          <div className="h-48 bg-gray-800 rounded"></div>
-        </div>
-      </Layout>
-    );
-  }
-  
+  const [performanceData, setPerformanceData] = useState<ChartData[]>([]);
+  const [copySettings, setCopySettings] = useState<CopySettings>({
+    enabled: false,
+    sizeType: 'fixed',
+    size: 100,
+    stopLoss: 5,
+    takeProfit: 10,
+    maxDrawdown: 20,
+    maxPositionSize: 1000
+  });
+
+  const trader = traders?.find(t => t.id === Number(id));
+  const isFollowing = user?.following.includes(Number(id));
+
+  useEffect(() => {
+    if (!trader) return;
+
+    // Initialize performance data from trader's trades
+    const data = trader.trades.map(trade => ({
+      timestamp: trade.timestamp,
+      value: trade.profit_loss
+    }));
+    setPerformanceData(data);
+
+    // Load copy settings if they exist
+    if (user?.copySettings?.[trader.id]) {
+      setCopySettings(user.copySettings[trader.id]);
+    }
+  }, [trader, user]);
+
+  useEffect(() => {
+    if (!socket || !trader) return;
+
+    const handleTrade = (trade: Trade) => {
+      if (trade.trader_id === trader.id) {
+        setPerformanceData(prev => {
+          const newData = {
+            timestamp: trade.timestamp,
+            value: trade.profit_loss
+          };
+          return [...prev, newData].slice(-50); // Keep last 50 data points
+        });
+      }
+    };
+
+    socket.on('trade', handleTrade);
+
+    return () => {
+      socket.off('trade', handleTrade);
+    };
+  }, [socket, trader]);
+
+  const handleFollow = () => {
+    if (!user || !updateUser || !trader) return;
+
+    const newFollowing = isFollowing
+      ? user.following.filter(id => id !== trader.id)
+      : [...user.following, trader.id];
+
+    updateUser({
+      ...user,
+      following: newFollowing
+    });
+  };
+
+  const handleCopySettingsChange = (field: keyof CopySettings, value: number | string | boolean) => {
+    setCopySettings(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleStartCopying = () => {
+    if (!trader) return;
+    startCopyTrading(trader.id, copySettings);
+  };
+
+  const handleStopCopying = () => {
+    if (!trader) return;
+    stopCopyTrading(trader.id);
+  };
+
+  const handleCopyOnce = () => {
+    if (!trader) return;
+    copyPortfolioOnce(trader.id, copySettings);
+  };
+
   if (!trader) {
     return (
       <Layout title="Trader Not Found">
-        <div className="text-center py-12">
-          <h1 className="text-2xl font-bold mb-4">Trader Not Found</h1>
-          <p className="text-gray-400 mb-6">The trader you're looking for doesn't exist or may have been removed.</p>
-          <Link href="/traders" className="px-4 py-2 bg-primary text-white rounded-md">
-            Back to Traders
-          </Link>
+        <div className="text-center text-gray-400 mt-8">
+          Trader not found
         </div>
       </Layout>
     );
   }
-  
-  // Get chart data
-  const chartData = generateChartData(trader.id);
-  
-  // Calculate return metrics
-  const startValue = chartData[0].value;
-  const endValue = chartData[chartData.length - 1].value;
-  const totalReturn = endValue - startValue;
-  const totalReturnPercentage = (totalReturn / startValue) * 100;
-  const isPositiveReturn = totalReturn >= 0;
-  
+
+  const calculateMetrics = (trades: Trade[]) => {
+    if (trades.length === 0) return { winRate: 0, avgWin: 0, avgLoss: 0, profitFactor: 0 };
+
+    const wins = trades.filter(t => t.profit_loss > 0);
+    const losses = trades.filter(t => t.profit_loss < 0);
+    
+    const winRate = (wins.length / trades.length) * 100;
+    const avgWin = wins.length > 0 
+      ? wins.reduce((sum, t) => sum + t.profit_loss, 0) / wins.length 
+      : 0;
+    const avgLoss = losses.length > 0
+      ? Math.abs(losses.reduce((sum, t) => sum + t.profit_loss, 0)) / losses.length
+      : 0;
+    const profitFactor = avgLoss !== 0 ? avgWin / avgLoss : 0;
+
+    return { winRate, avgWin, avgLoss, profitFactor };
+  };
+
+  const metrics = calculateMetrics(trader.trades);
+
   return (
-    <Layout title={`${trader.name} - Trader Profile`}>
-      <div className="mb-4">
-        <Link href="/traders" className="inline-flex items-center text-gray-400 hover:text-primary">
-          <ArrowLeftIcon className="w-4 h-4 mr-1" />
-          Back to Traders
-        </Link>
-      </div>
-      
-      <div className="bg-gray-800 rounded-xl shadow-lg overflow-hidden mb-8">
-        <div className="p-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
-            <div className="flex items-center mb-4 md:mb-0">
-              <div className="relative h-16 w-16 rounded-full overflow-hidden mr-4">
-                <Image 
-                  src={trader.profilePic} 
-                  alt={trader.name}
-                  fill
-                  className="object-cover"
-                />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold">{trader.name}</h1>
-                <div className="text-gray-400 flex items-center">
-                  <span>{trader.followers.toLocaleString()} followers</span>
-                  <span className="mx-2">•</span>
-                  <span className={`${trader.risk_level === 'High' ? 'text-danger' : trader.risk_level === 'Medium' ? 'text-warning' : 'text-success'}`}>
-                    {trader.risk_level} Risk
-                  </span>
-                </div>
-                {trader.description && (
-                  <p className="text-sm text-gray-300 mt-2 max-w-2xl">{trader.description}</p>
-                )}
-              </div>
+    <Layout title={`Trader - ${trader.name}`}>
+      <div className="container mx-auto px-4 py-8">
+        {/* Trader Header */}
+        <div className="flex justify-between items-start mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">{trader.name}</h1>
+            <p className="text-gray-400">{trader.description}</p>
+            <div className="mt-4 flex items-center space-x-4">
+              <span className="text-gray-400">
+                {trader.followers.toLocaleString()} followers
+              </span>
+              <span className="text-gray-400">•</span>
+              <span className="text-gray-400">
+                Joined {new Date(trader.joined_date).toLocaleDateString()}
+              </span>
             </div>
-            
+          </div>
+          <div className="flex space-x-4">
             <button
-              onClick={() => toggleFollowTrader(trader.id)}
-              className={`px-4 py-2 rounded-md font-medium transition-colors ${
-                following
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              onClick={handleFollow}
+              className={`px-4 py-2 rounded-lg transition-colors duration-150 ${
+                isFollowing
+                  ? 'bg-gray-600 text-white hover:bg-gray-700'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
               }`}
             >
-              {following ? 'Following' : 'Follow'}
+              {isFollowing ? 'Unfollow' : 'Follow'}
             </button>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <div className="bg-gray-700 p-4 rounded-lg">
-              <div className="text-sm text-gray-400 mb-1">30-Day Return</div>
-              <div className={`text-2xl font-bold flex items-center ${isPositiveReturn ? 'text-success' : 'text-danger'}`}>
-                {isPositiveReturn ? (
-                  <ArrowTrendingUpIcon className="w-5 h-5 mr-1" />
-                ) : (
-                  <ArrowTrendingDownIcon className="w-5 h-5 mr-1" />
-                )}
-                {trader.return_30d.toFixed(1)}%
+        </div>
+
+        {/* Performance Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-gray-800 rounded-lg p-6">
+            <h3 className="text-gray-400 text-sm mb-2">Monthly Return</h3>
+            <p className={`text-2xl font-bold ${
+              trader.monthly_return >= 0 ? 'text-green-400' : 'text-red-400'
+            }`}>
+              {trader.monthly_return >= 0 ? '+' : ''}{trader.monthly_return.toFixed(2)}%
+            </p>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-6">
+            <h3 className="text-gray-400 text-sm mb-2">Win Rate</h3>
+            <p className="text-2xl font-bold text-white">
+              {metrics.winRate.toFixed(1)}%
+            </p>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-6">
+            <h3 className="text-gray-400 text-sm mb-2">Profit Factor</h3>
+            <p className="text-2xl font-bold text-white">
+              {metrics.profitFactor.toFixed(2)}
+            </p>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-6">
+            <h3 className="text-gray-400 text-sm mb-2">Risk Level</h3>
+            <p className={`text-2xl font-bold ${
+              trader.risk_level === 'Low' ? 'text-green-400' :
+              trader.risk_level === 'Medium' ? 'text-yellow-400' :
+              'text-red-400'
+            }`}>
+              {trader.risk_level}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Performance Chart */}
+          <div className="lg:col-span-2">
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h2 className="text-xl font-semibold text-white mb-4">Performance</h2>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={performanceData}>
+                    <defs>
+                      <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#34D399" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#34D399" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <XAxis 
+                      dataKey="timestamp"
+                      tick={{ fill: '#9CA3AF' }}
+                      tickFormatter={(value) => new Date(value).toLocaleDateString()}
+                    />
+                    <YAxis 
+                      tick={{ fill: '#9CA3AF' }}
+                      tickFormatter={(value) => `$${value.toLocaleString()}`}
+                    />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151' }}
+                      formatter={(value: number) => [`$${value.toLocaleString()}`, 'P&L']}
+                      labelFormatter={(label) => new Date(label).toLocaleString()}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke="#34D399"
+                      fill="url(#colorValue)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
             </div>
-            
-            <div className="bg-gray-700 p-4 rounded-lg">
-              <div className="text-sm text-gray-400 mb-1">Win Rate</div>
-              <div className="text-2xl font-bold">{trader.win_rate}%</div>
-            </div>
-            
-            <div className="bg-gray-700 p-4 rounded-lg">
-              <div className="text-sm text-gray-400 mb-1">Sharpe Ratio</div>
-              <div className="text-2xl font-bold">{trader.sharpe_ratio?.toFixed(2) || 'N/A'}</div>
-            </div>
           </div>
-          
-          <div className="mb-6">
-            <div className="text-lg font-semibold mb-3">Performance Chart</div>
-            <div className="bg-gray-700 p-4 rounded-lg h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <defs>
-                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0070f3" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#0070f3" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <XAxis 
-                    dataKey="date" 
-                    tick={{ fill: '#9ca3af' }} 
-                    tickLine={{ stroke: '#4b5563' }}
-                    axisLine={{ stroke: '#4b5563' }}
-                    tickMargin={10}
-                    interval="preserveStartEnd"
-                    tickFormatter={(value) => {
-                      const date = new Date(value);
-                      return `${date.getMonth() + 1}/${date.getDate()}`;
-                    }}
-                  />
-                  <YAxis 
-                    tick={{ fill: '#9ca3af' }} 
-                    tickLine={{ stroke: '#4b5563' }}
-                    axisLine={{ stroke: '#4b5563' }}
-                    tickMargin={10}
-                    tickFormatter={(value) => `$${value.toLocaleString()}`}
-                    width={80}
-                  />
-                  <Tooltip 
-                    formatter={(value: number) => [`$${value.toLocaleString()}`, 'Portfolio Value']}
-                    labelFormatter={(label) => {
-                      const date = new Date(label);
-                      return date.toLocaleDateString();
-                    }}
-                    contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151' }}
-                    itemStyle={{ color: '#ffffff' }}
-                    labelStyle={{ color: '#9ca3af' }}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="value" 
-                    stroke="#0070f3" 
-                    fillOpacity={1} 
-                    fill="url(#colorValue)" 
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          
-          <div>
-            <div className="text-lg font-semibold mb-3">Recent Trades</div>
-            
-            {trader.trades.length === 0 ? (
-              <div className="bg-gray-700 p-4 rounded-lg text-center">
-                <p className="text-gray-400">No recent trades available.</p>
+
+          {/* Copy Trading Settings */}
+          <div className="bg-gray-800 rounded-lg p-6">
+            <h2 className="text-xl font-semibold text-white mb-4">Copy Trading Settings</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Position Size Type
+                </label>
+                <select
+                  value={copySettings.sizeType}
+                  onChange={(e) => handleCopySettingsChange('sizeType', e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="fixed">Fixed Size ($)</option>
+                  <option value="percentage">Portfolio %</option>
+                </select>
               </div>
-            ) : (
-              <div className="bg-gray-700 p-4 rounded-lg overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-600">
-                  <thead>
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Ticker</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Action</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Price</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Size</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Value</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date/Time</th>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  {copySettings.sizeType === 'fixed' ? 'Fixed Size ($)' : 'Portfolio %'}
+                </label>
+                <input
+                  type="number"
+                  value={copySettings.size}
+                  onChange={(e) => handleCopySettingsChange('size', Number(e.target.value))}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Stop Loss (%)
+                </label>
+                <input
+                  type="number"
+                  value={copySettings.stopLoss}
+                  onChange={(e) => handleCopySettingsChange('stopLoss', Number(e.target.value))}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Take Profit (%)
+                </label>
+                <input
+                  type="number"
+                  value={copySettings.takeProfit}
+                  onChange={(e) => handleCopySettingsChange('takeProfit', Number(e.target.value))}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Max Drawdown (%)
+                </label>
+                <input
+                  type="number"
+                  value={copySettings.maxDrawdown}
+                  onChange={(e) => handleCopySettingsChange('maxDrawdown', Number(e.target.value))}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Max Position Size ($)
+                </label>
+                <input
+                  type="number"
+                  value={copySettings.maxPositionSize}
+                  onChange={(e) => handleCopySettingsChange('maxPositionSize', Number(e.target.value))}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="pt-4 space-y-3">
+                <button
+                  onClick={copySettings.enabled ? handleStopCopying : handleStartCopying}
+                  className={`w-full px-4 py-2 rounded-lg transition-colors duration-150 ${
+                    copySettings.enabled
+                      ? 'bg-red-600 hover:bg-red-700'
+                      : 'bg-green-600 hover:bg-green-700'
+                  } text-white`}
+                >
+                  {copySettings.enabled ? 'Stop Copying' : 'Start Copying'}
+                </button>
+                <button
+                  onClick={handleCopyOnce}
+                  className="w-full px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors duration-150"
+                >
+                  Copy Portfolio Once
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Trades */}
+        <div className="mt-8">
+          <h2 className="text-xl font-semibold text-white mb-4">Recent Trades</h2>
+          <div className="bg-gray-800 rounded-lg overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-700">
+                <thead className="bg-gray-900">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Time</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Symbol</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Type</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Quantity</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Price</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">P&L</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-gray-800 divide-y divide-gray-700">
+                  {trader.trades.slice().reverse().map((trade) => (
+                    <tr key={`${trade.id}-${trade.timestamp}`}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                        {new Date(trade.timestamp).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                        {trade.symbol}
+                      </td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${
+                        trade.type === 'buy' ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        {trade.type.toUpperCase()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                        {trade.quantity}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                        ${trade.price.toFixed(2)}
+                      </td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
+                        trade.profit_loss >= 0 ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        ${trade.profit_loss.toFixed(2)}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-600">
-                    {trader.trades.map((trade: Trade, index) => (
-                      <tr key={`${trade.trader_id}-${trade.timestamp}-${index}`}>
-                        <td className="px-4 py-3 whitespace-nowrap font-medium">{trade.ticker}</td>
-                        <td className={`px-4 py-3 whitespace-nowrap ${trade.action === 'BUY' ? 'text-success' : 'text-danger'}`}>
-                          {trade.action}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">${trade.price.toFixed(2)}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">{trade.size}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">${(trade.price * trade.size).toLocaleString()}</td>
-                        <td className="px-4 py-3 whitespace-nowrap text-gray-400">
-                          {new Date(trade.timestamp).toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
     </Layout>
   );
-}
+};
+
+export default TraderDetailPage;

@@ -1,82 +1,81 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSocket } from '@/contexts/SocketContext';
 import { useUser } from '@/contexts/UserContext';
-import { ArrowTrendingUpIcon, ArrowTrendingDownIcon } from '@heroicons/react/24/solid';
+import { Trade } from '@/types';
 
 const PortfolioSummary: React.FC = () => {
+  const { socket } = useSocket();
   const { user } = useUser();
-  
+  const [recentPnL, setRecentPnL] = useState<number>(0);
+  const [showPnLAnimation, setShowPnLAnimation] = useState(false);
+
+  useEffect(() => {
+    socket?.on('trade', (trade: Trade) => {
+      if (user?.following.includes(trade.trader_id)) {
+        const pnlChange = trade.profit_loss;
+        setRecentPnL(pnlChange);
+        setShowPnLAnimation(true);
+        setTimeout(() => setShowPnLAnimation(false), 2000);
+      }
+    });
+
+    return () => {
+      socket?.off('trade');
+    };
+  }, [socket, user]);
+
   if (!user) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6 animate-pulse">
-        <div className="h-6 bg-gray-700 rounded w-1/3 mb-4"></div>
-        <div className="h-8 bg-gray-700 rounded w-1/2 mb-6"></div>
-        <div className="flex space-x-4">
-          <div className="h-4 bg-gray-700 rounded w-1/4"></div>
-          <div className="h-4 bg-gray-700 rounded w-1/4"></div>
-          <div className="h-4 bg-gray-700 rounded w-1/4"></div>
-        </div>
+      <div className="bg-gray-800 rounded-lg p-6">
+        <p className="text-center text-gray-400">Loading...</p>
       </div>
     );
   }
 
-  // Calculate portfolio value
-  const portfolioValue = user.portfolio.reduce((total, holding) => {
-    return total + (holding.shares * holding.current_price);
-  }, 0);
-
-  // Calculate portfolio performance
-  const portfolioCost = user.portfolio.reduce((total, holding) => {
-    return total + (holding.shares * holding.avg_price);
-  }, 0);
-  
-  const totalReturn = portfolioValue - portfolioCost;
-  const totalReturnPercentage = portfolioCost > 0 
-    ? ((totalReturn / portfolioCost) * 100) 
-    : 0;
-  
-  const isPositiveReturn = totalReturn >= 0;
-  const returnColor = isPositiveReturn ? 'text-success' : 'text-danger';
-  const ReturnIcon = isPositiveReturn ? ArrowTrendingUpIcon : ArrowTrendingDownIcon;
+  const totalBalance = user.balance || 0;
+  const totalPnL = user.trades.reduce((sum, trade) => sum + trade.profit_loss, 0);
+  const todayPnL = user.trades
+    .filter(
+      (trade) =>
+        new Date(trade.timestamp).toDateString() === new Date().toDateString()
+    )
+    .reduce((sum, trade) => sum + trade.profit_loss, 0);
 
   return (
     <div className="bg-gray-800 rounded-lg p-6">
-      <h3 className="text-lg font-semibold mb-2">Portfolio Summary</h3>
+      <h2 className="text-xl font-bold text-white mb-6">Portfolio Summary</h2>
       
-      <div className="flex items-center justify-between mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div>
-          <div className="text-3xl font-bold">${portfolioValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-          <div className={`flex items-center ${returnColor} text-sm mt-1`}>
-            <ReturnIcon className="w-4 h-4 mr-1" />
-            <span>${Math.abs(totalReturn).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-            <span className="ml-1">({Math.abs(totalReturnPercentage).toFixed(2)}%)</span>
+          <h3 className="text-gray-400 text-sm mb-2">Total Balance</h3>
+          <p className="text-2xl font-bold text-white">
+            ${totalBalance.toFixed(2)}
+          </p>
+        </div>
+        
+        <div>
+          <h3 className="text-gray-400 text-sm mb-2">Total P&L</h3>
+          <p className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+            ${totalPnL.toFixed(2)}
+          </p>
+        </div>
+        
+        <div>
+          <h3 className="text-gray-400 text-sm mb-2">Today's P&L</h3>
+          <div className="flex items-center">
+            <p className={`text-2xl font-bold ${todayPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              ${todayPnL.toFixed(2)}
+            </p>
+            {showPnLAnimation && (
+              <span
+                className={`ml-2 text-sm font-medium ${
+                  recentPnL >= 0 ? 'text-green-500' : 'text-red-500'
+                } animate-fade-out`}
+              >
+                {recentPnL >= 0 ? '+' : ''}{recentPnL.toFixed(2)}
+              </span>
+            )}
           </div>
-        </div>
-        
-        <div className="bg-gray-700 px-4 py-2 rounded-lg">
-          <div className="text-sm text-gray-400">Cash Balance</div>
-          <div className="text-xl font-semibold">${user.balance.toLocaleString()}</div>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-gray-700 p-3 rounded-lg">
-          <div className="text-xs text-gray-400 mb-1">Positions</div>
-          <div className="text-lg font-semibold">{user.portfolio.length}</div>
-        </div>
-        
-        <div className="bg-gray-700 p-3 rounded-lg">
-          <div className="text-xs text-gray-400 mb-1">Following</div>
-          <div className="text-lg font-semibold">{user.following.length} Traders</div>
-        </div>
-        
-        <div className="bg-gray-700 p-3 rounded-lg">
-          <div className="text-xs text-gray-400 mb-1">Auto-Copy</div>
-          <div className="text-lg font-semibold">{user.auto_copy ? 'Enabled' : 'Disabled'}</div>
-        </div>
-        
-        <div className="bg-gray-700 p-3 rounded-lg">
-          <div className="text-xs text-gray-400 mb-1">Copy Amount</div>
-          <div className="text-lg font-semibold">${user.copy_amount}</div>
         </div>
       </div>
     </div>

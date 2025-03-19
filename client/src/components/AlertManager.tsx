@@ -1,9 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
-import { useUser } from '@/contexts/UserContext';
+
+interface Alert {
+  id: number;
+  trader_name: string;
+  message: string;
+  type: 'success' | 'warning' | 'danger';
+  timestamp: Date;
+}
 
 const AlertManager: React.FC = () => {
-  const { alerts, dismissAlert } = useUser();
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+
+  const dismissAlert = (id: number) => {
+    setAlerts(prev => prev.filter(alert => alert.id !== id));
+  };
 
   if (alerts.length === 0) return null;
 

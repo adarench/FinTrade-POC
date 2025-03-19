@@ -5,7 +5,7 @@ import { useSocket } from '@/contexts/SocketContext';
 
 const Navbar: React.FC = () => {
   const { user } = useUser();
-  const { connected } = useSocket();
+  const { isConnected } = useSocket();
 
   return (
     <nav className="bg-gray-800 py-3 px-4 shadow-md">
@@ -22,9 +22,9 @@ const Navbar: React.FC = () => {
         <div className="flex items-center space-x-6">
           {/* Socket connection status */}
           <div className="flex items-center space-x-2">
-            <div className={`h-2 w-2 rounded-full ${connected ? 'bg-success' : 'bg-danger'}`}></div>
+            <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-success' : 'bg-danger'}`}></div>
             <span className="text-xs text-gray-400">
-              {connected ? 'Connected' : 'Disconnected'}
+              {isConnected ? 'Connected' : 'Disconnected'}
             </span>
           </div>
           

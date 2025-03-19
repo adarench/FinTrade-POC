@@ -1,50 +1,68 @@
+// Trader Domain
+export type RiskLevel = 'Low' | 'Medium' | 'High';
+
+export interface Trade {
+  id: number;
+  trader_id: number;
+  trader_name: string;
+  trader_avatar?: string;
+  symbol: string;
+  type: 'buy' | 'sell';
+  quantity: number;
+  price: number;
+  profit_loss: number;
+  timestamp: string;
+}
+
 export interface Trader {
   id: number;
   name: string;
-  profilePic: string;
-  followers: number;
-  return_30d: number;
+  avatar?: string;
+  risk_level: RiskLevel;
+  monthly_return: number;
+  daily_return: number;
   win_rate: number;
-  risk_level: 'Low' | 'Medium' | 'High';
+  followers: number;
   trades: Trade[];
-  sharpe_ratio?: number;
-  description?: string;
 }
 
-export interface Trade {
-  id?: number;
-  trader_id: number;
-  ticker: string;
-  action: 'BUY' | 'SELL';
-  price: number;
-  size: number;
-  timestamp: string;
-  pnl?: number;
-}
-
+// User Domain
 export interface User {
   id: number;
   name: string;
+  email: string;
+  avatar?: string;
   balance: number;
   following: number[];
-  portfolio: UserHolding[];
   trades: Trade[];
-  auto_copy: boolean;
-  copy_amount: number;
+  settings: UserSettings;
+  copy_settings: { [key: number]: CopySettings };
 }
 
-export interface UserHolding {
-  ticker: string;
-  shares: number;
-  avg_price: number;
-  current_price: number;
+export interface UserSettings {
+  theme: 'light' | 'dark';
+  notifications: boolean;
+  email_alerts: boolean;
+  risk_level: RiskLevel;
+  max_daily_loss: number;
 }
 
-export interface TradeAlert {
-  id: number;
-  message: string;
-  type: 'success' | 'warning' | 'danger' | 'info';
-  trader_name: string;
+export interface CopySettings {
+  enabled: boolean;
+  position_size_type: 'fixed' | 'percentage';
+  position_size: number;
+  max_position_size: number;
+  stop_loss_percentage: number;
+  take_profit_percentage: number;
+  max_daily_loss: number;
+  max_drawdown: number;
+}
+
+// Market Data Domain
+export interface MarketData {
+  symbol: string;
+  price: number;
+  change: number;
+  volume: number;
   timestamp: string;
-  trade: Trade;
 }
