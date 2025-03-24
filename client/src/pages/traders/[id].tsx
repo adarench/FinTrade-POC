@@ -22,6 +22,14 @@ const TraderDetailPage: React.FC = () => {
   const [performanceData, setPerformanceData] = useState<ChartData[]>([]);
   const [copySettings, setCopySettings] = useState<CopySettings>({
     enabled: false,
+    position_size_type: 'fixed',
+    position_size: 100,
+    max_position_size: 1000,
+    stop_loss_percentage: 5,
+    take_profit_percentage: 10,
+    max_daily_loss: 500,
+    max_drawdown: 20,
+    // Backward compatibility
     sizeType: 'fixed',
     size: 100,
     stopLoss: 5,
@@ -44,16 +52,29 @@ const TraderDetailPage: React.FC = () => {
     setPerformanceData(data);
 
     // Load copy settings if they exist
-    if (user?.copySettings?.[trader.id]) {
-      setCopySettings(user.copySettings[trader.id]);
+    if (user?.copy_settings?.[trader.id]) {
+      setCopySettings(user.copy_settings[trader.id]);
     }
   }, [trader, user]);
+
+  // For UI notifications
+  const [tradeNotification, setTradeNotification] = useState<{
+    show: boolean;
+    message: string;
+    type: 'original' | 'copy';
+  }>({
+    show: false,
+    message: '',
+    type: 'original'
+  });
 
   useEffect(() => {
     if (!socket || !trader) return;
 
+    // When the trader makes a trade
     const handleTrade = (trade: Trade) => {
       if (trade.trader_id === trader.id) {
+        // Update the performance chart
         setPerformanceData(prev => {
           const newData = {
             timestamp: trade.timestamp,
@@ -61,13 +82,45 @@ const TraderDetailPage: React.FC = () => {
           };
           return [...prev, newData].slice(-50); // Keep last 50 data points
         });
+
+        // Show a notification
+        setTradeNotification({
+          show: true,
+          message: `${trader.name} ${trade.type === 'buy' ? 'bought' : 'sold'} ${trade.quantity} ${trade.symbol} @ $${trade.price.toFixed(2)}`,
+          type: 'original'
+        });
+
+        // Hide after 5 seconds
+        setTimeout(() => {
+          setTradeNotification(prev => ({ ...prev, show: false }));
+        }, 5000);
+      }
+    };
+
+    // When your copy trading executes
+    const handleCopyTrade = (data: {userId: number, trade: Trade}) => {
+      // Check if this copy trade is related to this trader
+      if (data.trade.trader_id === trader.id) {
+        // Show a notification
+        setTradeNotification({
+          show: true,
+          message: `You copied ${trader.name}'s trade: ${data.trade.type === 'buy' ? 'bought' : 'sold'} ${data.trade.quantity} ${data.trade.symbol} @ $${data.trade.price.toFixed(2)}`,
+          type: 'copy'
+        });
+
+        // Hide after 5 seconds
+        setTimeout(() => {
+          setTradeNotification(prev => ({ ...prev, show: false }));
+        }, 5000);
       }
     };
 
     socket.on('trade', handleTrade);
+    socket.on('copy_trade', handleCopyTrade);
 
     return () => {
       socket.off('trade', handleTrade);
+      socket.off('copy_trade', handleCopyTrade);
     };
   }, [socket, trader]);
 
@@ -138,6 +191,20 @@ const TraderDetailPage: React.FC = () => {
 
   return (
     <Layout title={`Trader - ${trader.name}`}>
+      {/* Trade notifications */}
+      {tradeNotification.show && (
+        <div className={`fixed bottom-4 right-4 p-4 rounded-lg shadow-lg z-50 transition-all duration-300 ease-in-out transform translate-y-0 ${
+          tradeNotification.type === 'original' ? 'bg-gray-800' : 'bg-blue-900'
+        }`}>
+          <div className="flex items-center">
+            <div className={`w-2 h-2 rounded-full mr-3 animate-pulse ${
+              tradeNotification.type === 'original' ? 'bg-green-500' : 'bg-blue-500'
+            }`}></div>
+            <p className="text-white">{tradeNotification.message}</p>
+          </div>
+        </div>
+      )}
+      
       <div className="container mx-auto px-4 py-8">
         {/* Trader Header */}
         <div className="flex justify-between items-start mb-8">
@@ -150,7 +217,7 @@ const TraderDetailPage: React.FC = () => {
               </span>
               <span className="text-gray-400">•</span>
               <span className="text-gray-400">
-                Joined {new Date(trader.joined_date).toLocaleDateString()}
+                Joined {trader.joined_date ? new Date(trader.joined_date).toLocaleDateString() : new Date().toLocaleDateString()}
               </span>
             </div>
           </div>

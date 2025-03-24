@@ -161,7 +161,7 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({
     },
     interaction: {
       intersect: false,
-      mode: 'index',
+      mode: 'index' as const,
     }
   };
 
@@ -181,48 +181,59 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({
   const timeRanges: TimeRange[] = ['1D', '1W', '1M', 'YTD', 'MAX'];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-gray-800 rounded-xl">
-      {/* Left Side - Portfolio Stats */}
-      <div className="space-y-4">
-        <div>
-          <h3 className="text-gray-400 text-sm">Current Balance</h3>
-          <p className="text-2xl font-bold text-white">${balance.toLocaleString()}</p>
-        </div>
-        <div className="flex items-center space-x-4">
+    <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl overflow-hidden shadow-xl border border-gray-700">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+        {/* Left Side - Portfolio Stats */}
+        <div className="space-y-4">
           <div>
-            <h3 className="text-gray-400 text-sm">Today's P&L</h3>
-            <p className={`text-lg font-semibold ${dailyPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {dailyPnL >= 0 ? '+' : ''}{dailyPnLPercentage.toFixed(2)}%
-            </p>
+            <h3 className="text-gray-400 text-sm font-medium uppercase tracking-wider">Current Balance</h3>
+            <p className="text-3xl font-bold text-white mt-1">${balance.toLocaleString()}</p>
           </div>
-          <div>
-            <h3 className="text-gray-400 text-sm">Net Change</h3>
-            <p className={`text-lg font-semibold ${dailyPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {dailyPnL >= 0 ? '+' : ''}${Math.abs(dailyPnL).toLocaleString()}
-            </p>
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <h3 className="text-gray-400 text-xs font-medium uppercase tracking-wider">Today's P&L</h3>
+              <p className={`text-lg font-bold flex items-center mt-1 ${dailyPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {dailyPnL >= 0 ? (
+                  <svg className="w-4 h-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M12 7a1 1 0 10-2 0v4.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L12 11.586V7z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M12 13a1 1 0 10-2 0v-4.586l-1.293 1.293a1 1 0 01-1.414-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L12 8.414V13z" clipRule="evenodd" />
+                  </svg>
+                )}
+                {dailyPnL >= 0 ? '+' : ''}{dailyPnLPercentage.toFixed(2)}%
+              </p>
+            </div>
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <h3 className="text-gray-400 text-xs font-medium uppercase tracking-wider">Net Change</h3>
+              <p className={`text-lg font-bold mt-1 ${dailyPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {dailyPnL >= 0 ? '+' : ''}${Math.abs(dailyPnL).toLocaleString()}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Right Side - Chart */}
-      <div>
-        <div className="flex justify-end space-x-2 mb-2">
-          {timeRanges.map((range) => (
-            <button
-              key={range}
-              onClick={() => setTimeRange(range)}
-              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                timeRange === range
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              {range}
-            </button>
-          ))}
-        </div>
-        <div className="h-32">
-          <Line options={chartOptions} data={data} />
+        {/* Right Side - Chart */}
+        <div>
+          <div className="flex justify-end space-x-1 mb-3">
+            {timeRanges.map((range) => (
+              <button
+                key={range}
+                onClick={() => setTimeRange(range)}
+                className={`px-3 py-1 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  timeRange === range
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
+                }`}
+              >
+                {range}
+              </button>
+            ))}
+          </div>
+          <div className="h-36 bg-gray-800/30 rounded-lg p-2">
+            <Line options={chartOptions} data={data} />
+          </div>
         </div>
       </div>
     </div>

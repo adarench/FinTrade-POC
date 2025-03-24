@@ -130,12 +130,12 @@ const TradersPage: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          (!trader.risk_level || trader.risk_level === 'Unknown') ? 'bg-gray-900 text-gray-200' :
+                          !trader.risk_level ? 'bg-gray-900 text-gray-200' :
                           trader.risk_level === 'Low' ? 'bg-green-900 text-green-200' :
                           trader.risk_level === 'Medium' ? 'bg-yellow-900 text-yellow-200' :
                           'bg-red-900 text-red-200'
                         }`}>
-                          {trader.risk_level || 'Unknown'}
+                          {trader.risk_level || 'Low'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">

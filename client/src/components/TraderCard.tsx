@@ -28,7 +28,7 @@ const TraderCard: React.FC<TraderCardProps> = ({ trader }) => {
   };
 
   // Determine color for return percentage
-  const returnColor = trader.return_30d >= 0 ? 'text-success' : 'text-danger';
+  const returnColor = (trader.monthly_return || 0) >= 0 ? 'text-success' : 'text-danger';
   
   // Determine risk level color
   let riskColor;
@@ -51,7 +51,7 @@ const TraderCard: React.FC<TraderCardProps> = ({ trader }) => {
           <div className="flex items-center space-x-3">
             <div className="relative h-12 w-12 rounded-full overflow-hidden">
               <Image 
-                src={trader.profilePic} 
+                src={trader.avatar || '/default-avatar.png'} 
                 alt={trader.name}
                 fill
                 className="object-cover"
@@ -62,7 +62,7 @@ const TraderCard: React.FC<TraderCardProps> = ({ trader }) => {
                 {trader.name}
               </Link>
               <div className="text-xs text-gray-400">
-                {trader.followers.toLocaleString()} followers
+                {(trader.followers || 0).toLocaleString()} followers
               </div>
             </div>
           </div>
@@ -82,18 +82,18 @@ const TraderCard: React.FC<TraderCardProps> = ({ trader }) => {
           <div>
             <div className="text-xs text-gray-400 mb-1">30-Day Return</div>
             <div className={`text-lg font-bold flex items-center ${returnColor}`}>
-              {trader.return_30d >= 0 ? (
+              {(trader.monthly_return || 0) >= 0 ? (
                 <ArrowTrendingUpIcon className="w-4 h-4 mr-1" />
               ) : (
                 <ArrowTrendingDownIcon className="w-4 h-4 mr-1" />
               )}
-              {trader.return_30d.toFixed(1)}%
+              {(trader.monthly_return || 0).toFixed(1)}%
             </div>
           </div>
           
           <div>
             <div className="text-xs text-gray-400 mb-1">Win Rate</div>
-            <div className="text-lg font-bold">{trader.win_rate}%</div>
+            <div className="text-lg font-bold">{(trader.win_rate || 0).toFixed(0)}%</div>
           </div>
           
           <div>
@@ -104,11 +104,9 @@ const TraderCard: React.FC<TraderCardProps> = ({ trader }) => {
           </div>
         </div>
         
-        {trader.description && (
-          <div className="text-sm text-gray-300 mb-3">
-            {trader.description}
-          </div>
-        )}
+        <div className="text-sm text-gray-300 mb-3">
+          {trader.name}'s trading strategy focuses on {trader.risk_level.toLowerCase()} risk trades.
+        </div>
         
         <div className="mt-4">
           <Link 

@@ -79,23 +79,65 @@ const generateMockTrader = (id: number): Trader => {
 
 const generateMockTraders = (): Trader[] => {
   const traders: Trader[] = [];
-  const names = ['John Smith', 'Alice Johnson', 'Bob Wilson', 'Emma Davis', 'Michael Brown'];
+  const names = [
+    'Emma Thompson', 
+    'Michael Chen', 
+    'Sophia Rodriguez', 
+    'Daniel Kim', 
+    'Olivia Johnson',
+    'Ethan Williams',
+    'Ava Martinez',
+    'Noah Garcia',
+    'Isabella Lee',
+    'Lucas Smith'
+  ];
 
-  for (let i = 0; i < 5; i++) {
+  // Professional-quality avatars with diverse representation
+  const avatars = [
+    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=250&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=250&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?q=80&w=250&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=250&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?q=80&w=250&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1560250097-0b93528c311a?q=80&w=250&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1580489944761-15a19d654956?q=80&w=250&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=250&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=250&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=250&auto=format&fit=crop'
+  ];
+
+  // Expert backgrounds
+  const backgrounds = [
+    'Former Wall Street analyst with 12 years of experience',
+    'Algorithmic trading expert with a background in machine learning',
+    'Seasoned forex trader specializing in momentum strategies',
+    'Certified financial planner with expertise in value investing',
+    'Commodities specialist with a focus on energy markets',
+    'Quantitative analyst with a PhD in Finance',
+    'Day trader with 8+ years of consistent returns',
+    'Options strategist specializing in income generation',
+    'Growth investor with expertise in tech sector analysis',
+    'Asset allocation expert with risk management specialization'
+  ];
+
+  for (let i = 0; i < 10; i++) {
     const monthlyReturn = (Math.random() * 40) - 10; // -10% to +30%
-    const followers = Math.floor(Math.random() * 1000);
+    const followers = Math.floor(Math.random() * 1000) + 50;
     const trades: Trade[] = generateMockTrades(i + 1);
 
+    const winRate = Math.random() * 100;
     traders.push({
       id: i + 1,
       name: names[i],
-      avatar: `/avatars/trader${i + 1}.jpg`,
+      avatar: avatars[i],
       followers,
       trades,
-      risk_level: ['Low', 'Medium', 'High'][Math.floor(Math.random() * 3)],
-      description: `Professional trader with ${Math.floor(Math.random() * 10 + 1)} years of experience.`,
+      risk_level: (['Low', 'Medium', 'High'] as RiskLevel[])[Math.floor(Math.random() * 3)],
+      description: backgrounds[i],
       joined_date: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toISOString(),
       monthly_return: monthlyReturn,
+      daily_return: monthlyReturn / 30,
+      win_rate: winRate,
     });
   }
 
@@ -113,8 +155,10 @@ export const TraderProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Initialize with mock data only on client side
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setTraders(generateMockTraders());
-      setFilteredTraders(generateMockTraders());
+      const mockTraders = generateMockTraders();
+      setTraders(mockTraders);
+      setFilteredTraders(mockTraders);
+      setIsLoading(false);
     }
   }, []);
 

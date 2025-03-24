@@ -24,6 +24,9 @@ export interface Trader {
   win_rate: number;
   followers: number;
   trades: Trade[];
+  description?: string;
+  joined_date?: string;
+  return_30d?: number;
 }
 
 // User Domain
@@ -37,6 +40,11 @@ export interface User {
   trades: Trade[];
   settings: UserSettings;
   copy_settings: { [key: number]: CopySettings };
+  copy_amount?: number;
+  max_position_size?: number;
+  max_drawdown?: number;
+  stop_loss?: number;
+  take_profit?: number;
 }
 
 export interface UserSettings {
@@ -56,6 +64,13 @@ export interface CopySettings {
   take_profit_percentage: number;
   max_daily_loss: number;
   max_drawdown: number;
+  // Aliases for backward compatibility
+  sizeType?: 'fixed' | 'percentage';
+  size?: number;
+  stopLoss?: number;
+  takeProfit?: number;
+  maxDrawdown?: number;
+  maxPositionSize?: number;
 }
 
 // Market Data Domain

@@ -26,6 +26,8 @@ const generateMockTrades = (): Trade[] => {
     trades.push({
       id: i + 1,
       trader_id: Math.floor(Math.random() * 5) + 1,
+      trader_name: `Trader ${i + 1}`,
+      trader_avatar: `/avatars/trader${i + 1}.jpg`,
       symbol: symbols[Math.floor(Math.random() * symbols.length)],
       type: Math.random() > 0.5 ? 'buy' : 'sell',
       price,
@@ -75,7 +77,7 @@ const generateMockUser = (): User => {
     following: [1, 3], // Start with following a couple traders
     trades: generateMockTrades(),
     settings: generateMockSettings(),
-    copySettings: generateMockCopySettings(),
+    copy_settings: generateMockCopySettings(),
   };
 };
 

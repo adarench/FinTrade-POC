@@ -14,6 +14,7 @@ const LiveTradeFeed: React.FC = () => {
   useEffect(() => {
     if (!socket) return;
 
+    // Listen for regular trades
     socket.on('trade', (trade: Trade) => {
       setTrades(prev => [trade, ...prev].slice(0, 50)); // Keep last 50 trades
       const tradeId = `${trade.trader_id}-${trade.timestamp}`;
@@ -21,8 +22,34 @@ const LiveTradeFeed: React.FC = () => {
       setTimeout(() => setNewTradeHighlight(null), 1000);
     });
 
+    // Listen for copy trades too
+    socket.on('copy_trade', (data: {userId: number, trade: Trade}) => {
+      const copyTrade = {
+        ...data.trade,
+        isCopy: true // Mark as copy trade for UI display
+      };
+      setTrades(prev => [copyTrade, ...prev].slice(0, 50)); // Keep last 50 trades
+      const tradeId = `${copyTrade.trader_id}-${copyTrade.timestamp}-copy`;
+      setNewTradeHighlight(tradeId);
+      setTimeout(() => setNewTradeHighlight(null), 1000);
+    });
+
+    // Customer event for demo mode
+    const handleDemoTrade = (e: CustomEvent) => {
+      const trade = e.detail;
+      setTrades(prev => [trade, ...prev].slice(0, 50));
+      const tradeId = `${trade.trader_id}-${trade.timestamp}`;
+      setNewTradeHighlight(tradeId);
+      setTimeout(() => setNewTradeHighlight(null), 1000);
+    };
+
+    // Add custom event listener for demo mode
+    window.addEventListener('demo:trade', handleDemoTrade as EventListener);
+
     return () => {
       socket.off('trade');
+      socket.off('copy_trade');
+      window.removeEventListener('demo:trade', handleDemoTrade as EventListener);
     };
   }, [socket]);
 
@@ -46,6 +73,9 @@ const LiveTradeFeed: React.FC = () => {
           const traderName = trader ? trader.name : `Trader #${trade.trader_id}`;
           const isBuy = trade.type === 'buy';
 
+          // Check if this is a copy trade
+          const isCopyTrade = (trade as any).isCopy === true;
+          
           return (
             <div 
               key={tradeId}
@@ -53,9 +83,18 @@ const LiveTradeFeed: React.FC = () => {
                 isHighlighted ? 'scale-102 -translate-y-1' : ''
               }`}
             >
-              <div className={`py-3 px-4 rounded-lg border border-gray-700 ${
+              <div className={`py-3 px-4 rounded-lg border ${
+                isCopyTrade ? 'border-blue-700 border-opacity-50' : 'border-gray-700'
+              } ${
                 isHighlighted ? 'bg-gray-700/50' : 'bg-gray-800'
               } transition-colors duration-300`}>
+                {isCopyTrade && (
+                  <div className="flex items-center mb-1">
+                    <span className="text-xs text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">
+                      COPY TRADE
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="flex items-center mb-1">
@@ -72,7 +111,7 @@ const LiveTradeFeed: React.FC = () => {
                     </div>
                     
                     <div className="mt-1 flex items-center text-sm">
-                      <span className="text-gray-400">Value: ${trade.price.toFixed(2)}</span>
+                      <span className="text-gray-400">Value: ${(trade.price * trade.quantity).toFixed(2)}</span>
                       <span className="mx-2 text-gray-500">•</span>
                       <span className={trade.profit_loss >= 0 ? 'text-green-500' : 'text-red-500'}>
                         P&L: ${trade.profit_loss.toFixed(2)}

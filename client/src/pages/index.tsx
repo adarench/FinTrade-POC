@@ -20,7 +20,7 @@ const DashboardPage: React.FC = () => {
   const { traders, followTrader, unfollowTrader } = useTraders();
   const [recentTrades, setRecentTrades] = useState<Trade[]>([]);
   const [portfolioData, setPortfolioData] = useState({
-    balance: 0,
+    balance: 100000,
     dailyPnL: 0,
     dailyPnLPercentage: 0,
     chartData: {
@@ -58,107 +58,108 @@ const DashboardPage: React.FC = () => {
     });
   }, [user]);
 
-  // Calculate portfolio value based on user trades
-  const calculatePortfolioValue = useCallback(() => {
-    if (!user || !user.trades || user.trades.length === 0) return user?.balance || 0;
-    
-    // In a real app, we'd calculate actual portfolio value based on positions
-    // For this demo, we'll just use the balance + sum of P&L from today's trades
-    const today = new Date().setHours(0, 0, 0, 0);
-    const todayTrades = user.trades.filter(trade => {
-      const tradeDate = new Date(trade.timestamp);
-      return tradeDate.getTime() >= today;
-    });
-    
-    const todayPnL = todayTrades.reduce((sum, trade) => sum + trade.profit_loss, 0);
-    return user.balance + todayPnL;
-  }, [user]);
-
-  // Listen for trade updates
+  // Force-generate mock trades to ensure we see activity
   useEffect(() => {
-    if (!socket || !user) return;
-
-    socket.on('trade', (trade: Trade) => {
-      // Add trader name and avatar to trade object if missing
-      if (!trade.trader_name) {
-        const trader = traders.find(t => t.id === trade.trader_id);
-        if (trader) {
-          trade.trader_name = trader.name;
-          trade.trader_avatar = trader.avatar;
-        }
-      }
+    if (!user || !traders || traders.length === 0) return;
+    
+    // Generate a trade every 3 seconds
+    const tradeInterval = setInterval(() => {
+      // Select a random trader
+      const randomTrader = traders[Math.floor(Math.random() * traders.length)];
+      if (!randomTrader) return;
       
+      // Random stock symbols
+      const symbols = ['AAPL', 'TSLA', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NFLX', 'DIS'];
+      const randomSymbol = symbols[Math.floor(Math.random() * symbols.length)];
+      
+      // Create a trade
+      const trade: Trade = {
+        id: Date.now(),
+        trader_id: randomTrader.id,
+        trader_name: randomTrader.name,
+        trader_avatar: randomTrader.avatar || `/avatars/trader${randomTrader.id}.jpg`,
+        symbol: randomSymbol,
+        type: Math.random() > 0.5 ? 'buy' : 'sell',
+        quantity: Math.floor(Math.random() * 50) + 1,
+        price: Math.floor(Math.random() * 200) + 50,
+        profit_loss: (Math.random() - 0.4) * 100, // Slightly biased toward profit
+        timestamp: new Date().toISOString()
+      };
+      
+      // Add to recent trades
       setRecentTrades(prev => [trade, ...prev].slice(0, 20));
-
-      // Update portfolio value if the trade is from a followed trader
-      if (user.following.includes(trade.trader_id)) {
-        // In a real app, we would apply copy settings here
-        if (updateUser) {
-          const updatedUser = {
-            ...user,
-            trades: [...user.trades, {
-              ...trade,
-              id: Date.now(),
-              trader_id: user.id,
-              timestamp: new Date().toISOString(),
-            }],
-            balance: user.balance + trade.profit_loss,
+      
+      // If user is following this trader, create a copy trade
+      if (user.following && user.following.includes(trade.trader_id)) {
+        // Get user's copy settings for this trader or use default
+        const settings = user.copy_settings?.[trade.trader_id] || {
+          enabled: true,
+          position_size_type: 'fixed',
+          position_size: 1000,
+          max_position_size: 5000
+        };
+        
+        if (settings.enabled !== false) { // Default to enabled if not specified
+          // Calculate quantity based on settings
+          let quantity = trade.quantity;
+          if (settings.position_size_type === 'fixed') {
+            quantity = Math.floor(settings.position_size / trade.price);
+          } else if (settings.position_size_type === 'percentage') {
+            quantity = Math.floor((user.balance * (settings.position_size / 100)) / trade.price);
+          }
+          
+          // Limit to max position size
+          if (settings.max_position_size && quantity * trade.price > settings.max_position_size) {
+            quantity = Math.floor(settings.max_position_size / trade.price);
+          }
+          
+          // Create a copy trade
+          const copyTrade: Trade = {
+            ...trade,
+            id: Date.now() + 1,
+            trader_id: user.id,
+            trader_name: user.name || 'You',
+            trader_avatar: user.avatar || '/avatars/default.jpg',
+            quantity: quantity > 0 ? quantity : 1,
+            profit_loss: (trade.profit_loss / trade.quantity) * (quantity > 0 ? quantity : 1)
           };
-          updateUser(updatedUser);
+          
+          // Add to recent trades
+          setRecentTrades(prev => [{...copyTrade, isCopy: true} as Trade, ...prev].slice(0, 20));
+          
+          // Update user's portfolio value
+          if (updateUser) {
+            updateUser({
+              ...user,
+              trades: [...(user.trades || []), copyTrade],
+              balance: user.balance + copyTrade.profit_loss
+            });
+          }
+          
+          // Update portfolio data display
+          setPortfolioData(prev => {
+            const newBalance = prev.balance + copyTrade.profit_loss;
+            const newValues = [...prev.chartData.values];
+            if (newValues.length > 0) {
+              newValues[newValues.length - 1] = newValues[newValues.length - 1] + copyTrade.profit_loss;
+            }
+            
+            return {
+              balance: newBalance,
+              dailyPnL: prev.dailyPnL + copyTrade.profit_loss,
+              dailyPnLPercentage: prev.dailyPnLPercentage + (copyTrade.profit_loss / prev.balance) * 100,
+              chartData: {
+                ...prev.chartData,
+                values: newValues
+              }
+            };
+          });
         }
-
-        setPortfolioData(prev => {
-          const newBalance = prev.balance + trade.profit_loss;
-          const latestValue = prev.chartData.values[prev.chartData.values.length - 1] + trade.profit_loss;
-          
-          // Update chart with new value
-          const updatedValues = [...prev.chartData.values];
-          updatedValues[updatedValues.length - 1] = latestValue;
-          
-          return {
-            balance: newBalance,
-            dailyPnL: prev.dailyPnL + trade.profit_loss,
-            dailyPnLPercentage: ((latestValue - prev.chartData.values[0]) / prev.chartData.values[0]) * 100,
-            chartData: {
-              ...prev.chartData,
-              values: updatedValues
-            }
-          };
-        });
       }
-    });
-
-    // Market data updates to update chart in real-time
-    socket.on('market_data', (data: any) => {
-      // For simplicity, we'll just update the portfolio value slightly
-      // Use data.price to make updates deterministic based on input
-      if (data.symbol === 'AAPL') { // Only update on AAPL data to reduce updates
-        setPortfolioData(prev => {
-          const change = (data.price % 10) / 1000; // Small deterministic change
-          const latestValue = prev.chartData.values[prev.chartData.values.length - 1] + change;
-          
-          // Update chart with new value
-          const updatedValues = [...prev.chartData.values];
-          updatedValues[updatedValues.length - 1] = latestValue;
-          
-          return {
-            ...prev,
-            dailyPnL: latestValue - prev.chartData.values[0],
-            dailyPnLPercentage: ((latestValue - prev.chartData.values[0]) / prev.chartData.values[0]) * 100,
-            chartData: {
-              ...prev.chartData,
-              values: updatedValues
-            }
-          };
-        });
-      }
-    });
-
-    return () => {
-      socket.off('trade');
-      socket.off('market_data');
-    };
-  }, [socket, user, traders, updateUser]);
+    }, 2000); // Generate a trade every 2 seconds
+    
+    return () => clearInterval(tradeInterval);
+  }, [user, traders, updateUser]);
 
   const handleTradeClick = (trade: Trade) => {
     setSelectedTrade(trade);
@@ -171,7 +172,7 @@ const DashboardPage: React.FC = () => {
 
     // Make sure to handle undefined properties safely
     const sortedByDaily = [...traders].sort((a, b) => 
-      ((b.daily_return || 0) - (a.daily_return || 0))
+      ((b.monthly_return || 0) - (a.monthly_return || 0))
     );
     const sortedByConsistency = [...traders].sort((a, b) => 
       ((b.win_rate || 0) - (a.win_rate || 0))
@@ -191,18 +192,32 @@ const DashboardPage: React.FC = () => {
     if (!user || !updateUser) return;
     
     // Update user's following list
-    const newFollowing = [...user.following];
+    const newFollowing = [...(user.following || [])];
     if (!newFollowing.includes(traderId)) {
       newFollowing.push(traderId);
       const updatedUser = {
         ...user,
-        following: newFollowing
+        following: newFollowing,
+        // Initialize copy settings if they don't exist
+        copy_settings: {
+          ...(user.copy_settings || {}),
+          [traderId]: {
+            enabled: true,
+            position_size_type: 'fixed',
+            position_size: 1000,
+            max_position_size: 5000,
+            stop_loss_percentage: 5,
+            take_profit_percentage: 10,
+            max_daily_loss: 500,
+            max_drawdown: 15
+          }
+        }
       };
       updateUser(updatedUser);
     }
     
-    // Also update traders state via TraderContext
-    followTrader(traderId);
+    // Also update traders state via TraderContext if needed
+    if (followTrader) followTrader(traderId);
   };
 
   const handleUnfollow = (traderId: number) => {
@@ -211,12 +226,12 @@ const DashboardPage: React.FC = () => {
     // Update user's following list
     const updatedUser = {
       ...user,
-      following: user.following.filter(id => id !== traderId)
+      following: (user.following || []).filter(id => id !== traderId)
     };
     updateUser(updatedUser);
     
-    // Also update traders state via TraderContext
-    unfollowTrader(traderId);
+    // Also update traders state via TraderContext if needed
+    if (unfollowTrader) unfollowTrader(traderId);
   };
 
   const topPerformers = getTopPerformers();
@@ -352,10 +367,38 @@ const DashboardPage: React.FC = () => {
                 </button>
                 <button 
                   onClick={() => {
-                    // Implement copy trade functionality
-                    setShowTradeModal(false);
-                    // For demo, we'll just log it
-                    console.log('Copying trade:', selectedTrade);
+                    // Handle copying trade
+                    if (selectedTrade && user && updateUser) {
+                      // Create a copy of the trade with user as trader
+                      const copyTrade: Trade = {
+                        ...selectedTrade,
+                        id: Date.now(),
+                        trader_id: user.id,
+                        trader_name: user.name || 'You',
+                        trader_avatar: user.avatar || '/avatars/default.jpg',
+                        timestamp: new Date().toISOString()
+                      };
+                      
+                      // Add to user's trades and update balance
+                      updateUser({
+                        ...user,
+                        trades: [...(user.trades || []), copyTrade],
+                        balance: user.balance + copyTrade.profit_loss
+                      });
+                      
+                      // Add to recent trades feed
+                      setRecentTrades(prev => [{...copyTrade, isCopy: true} as Trade, ...prev].slice(0, 20));
+                      
+                      // Update portfolio data
+                      setPortfolioData(prev => ({
+                        ...prev,
+                        balance: prev.balance + copyTrade.profit_loss,
+                        dailyPnL: prev.dailyPnL + copyTrade.profit_loss,
+                        dailyPnLPercentage: prev.dailyPnLPercentage + (copyTrade.profit_loss / prev.balance) * 100
+                      }));
+                      
+                      setShowTradeModal(false);
+                    }
                   }}
                   className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
                 >

@@ -65,7 +65,7 @@ const FollowedTraders: React.FC<FollowedTradersProps> = ({ traders, onUnfollow }
                     <div>
                       <p className="font-medium text-white">{trader.name}</p>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getRiskColor(trader.risk_level)}`}>
-                        {trader.risk_level || 'Unknown'} Risk
+                        {trader.risk_level} Risk
                       </span>
                     </div>
                   </Link>

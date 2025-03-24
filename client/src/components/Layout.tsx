@@ -3,6 +3,7 @@ import Head from 'next/head';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import AlertManager from './AlertManager';
+import CopyTradeStatus from './CopyTradeStatus';
 import { useSocket } from '@/contexts/SocketContext';
 
 interface LayoutProps {
@@ -21,13 +22,20 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'FinTrade - Copy Trad
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <div className="min-h-screen bg-gray-900 text-white">
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white overflow-hidden relative">
+        {/* Decorative elements */}
+        <div className="absolute inset-0 overflow-hidden opacity-10">
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-600 rounded-full filter blur-3xl"></div>
+          <div className="absolute top-60 -left-40 w-80 h-80 bg-purple-600 rounded-full filter blur-3xl"></div>
+          <div className="absolute bottom-40 right-20 w-80 h-80 bg-green-600 rounded-full filter blur-3xl"></div>
+        </div>
+        
         <Navbar />
         {!isConnected && (
-          <div className="bg-red-900 text-white py-2 px-4 text-center">
-            <span className="inline-flex items-center">
-              <span className="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></span>
-              Disconnected from trading server. Reconnecting...
+          <div className="relative bg-gradient-to-r from-amber-700 to-red-700 text-white py-2 px-4 text-center shadow-lg">
+            <span className="inline-flex items-center font-medium">
+              <span className="w-2 h-2 rounded-full bg-amber-300 mr-2 animate-pulse"></span>
+              FinTrade is running in demo mode. Real-time data connection unavailable.
             </span>
           </div>
         )}
@@ -38,6 +46,7 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'FinTrade - Copy Trad
           </main>
         </div>
         <AlertManager />
+        <CopyTradeStatus />
       </div>
     </>
   );

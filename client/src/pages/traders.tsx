@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useTraders } from '@/contexts/TraderContext';
+import { useUser } from '@/contexts/UserContext';
 import { Trader } from '@/types';
+import Layout from '@/components/Layout';
 import { FaUser, FaChartLine, FaUserPlus, FaUserMinus, FaStar, FaCommentDots } from 'react-icons/fa';
 
 const TraderCard: React.FC<{
@@ -12,7 +14,7 @@ const TraderCard: React.FC<{
   const [showComments, setShowComments] = useState(false);
 
   // Calculate performance rating (1-5 stars)
-  const return30d = trader.return_30d || trader.monthly_return || 0;
+  const return30d = trader.monthly_return || 0;
   const rating = Math.min(5, Math.max(1, Math.floor(return30d / 5)));
 
   return (
@@ -20,7 +22,7 @@ const TraderCard: React.FC<{
       <div className="flex items-start justify-between">
         <div className="flex items-center">
           <img
-            src={trader.profilePic || trader.avatar || '/default-avatar.png'}
+            src={trader.avatar || '/default-avatar.png'}
             alt={trader.name || 'Trader'}
             className="w-16 h-16 rounded-full mr-4"
             onError={(e) => {
@@ -62,8 +64,8 @@ const TraderCard: React.FC<{
       <div className="grid grid-cols-3 gap-4 mt-6">
         <div className="bg-gray-700 p-3 rounded-lg">
           <p className="text-gray-400 text-sm">30-Day Return</p>
-          <p className={`text-lg font-bold ${(trader.return_30d || trader.monthly_return || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {(trader.return_30d || trader.monthly_return || 0).toFixed(1)}%
+          <p className={`text-lg font-bold ${(trader.monthly_return || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {(trader.monthly_return || 0).toFixed(1)}%
           </p>
         </div>
         <div className="bg-gray-700 p-3 rounded-lg">
@@ -78,7 +80,7 @@ const TraderCard: React.FC<{
 
       <div className="mt-4">
         <div className="flex items-center justify-between">
-          <p className="text-gray-300">{trader.description || 'No description available'}</p>
+          <p className="text-gray-300">{trader.description || `${trader.name} is a ${trader.risk_level.toLowerCase()} risk trader.`}</p>
           <button
             onClick={() => setShowComments(!showComments)}
             className="ml-4 text-blue-400 hover:text-blue-300"
@@ -127,6 +129,7 @@ const TraderCard: React.FC<{
 
 const TradersPage: React.FC = () => {
   const { traders, isLoading, error, followTrader, unfollowTrader } = useTraders();
+  const { user } = useUser();
   const [sortBy, setSortBy] = useState<'return' | 'followers' | 'winRate'>('return');
   const [riskFilter, setRiskFilter] = useState<string>('all');
 
@@ -134,7 +137,7 @@ const TradersPage: React.FC = () => {
   const sortedTraders = [...traders].sort((a, b) => {
     switch (sortBy) {
       case 'return':
-        return b.return_30d - a.return_30d;
+        return (b.monthly_return || 0) - (a.monthly_return || 0);
       case 'followers':
         return b.followers - a.followers;
       case 'winRate':
@@ -150,59 +153,65 @@ const TradersPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
+      <Layout title="Traders">
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      </Layout>
     );
   }
 
   if (error) {
     return (
-      <div className="text-center text-red-500 mt-8">
-        Error loading traders: {error}
-      </div>
+      <Layout title="Traders - Error">
+        <div className="text-center text-red-500 mt-8">
+          Error loading traders: {error}
+        </div>
+      </Layout>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-white">Top Traders</h1>
-        <div className="flex space-x-4">
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as 'return' | 'followers' | 'winRate')}
-            className="bg-gray-700 text-white px-4 py-2 rounded-lg"
-          >
-            <option value="return">Sort by Return</option>
-            <option value="followers">Sort by Followers</option>
-            <option value="winRate">Sort by Win Rate</option>
-          </select>
-          <select
-            value={riskFilter}
-            onChange={(e) => setRiskFilter(e.target.value)}
-            className="bg-gray-700 text-white px-4 py-2 rounded-lg"
-          >
-            <option value="all">All Risk Levels</option>
-            <option value="low">Low Risk</option>
-            <option value="medium">Medium Risk</option>
-            <option value="high">High Risk</option>
-          </select>
+    <Layout title="Top Traders">
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-white">Top Traders</h1>
+          <div className="flex space-x-4">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'return' | 'followers' | 'winRate')}
+              className="bg-gray-700 text-white px-4 py-2 rounded-lg"
+            >
+              <option value="return">Sort by Return</option>
+              <option value="followers">Sort by Followers</option>
+              <option value="winRate">Sort by Win Rate</option>
+            </select>
+            <select
+              value={riskFilter}
+              onChange={(e) => setRiskFilter(e.target.value)}
+              className="bg-gray-700 text-white px-4 py-2 rounded-lg"
+            >
+              <option value="all">All Risk Levels</option>
+              <option value="low">Low Risk</option>
+              <option value="medium">Medium Risk</option>
+              <option value="high">High Risk</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6">
+          {filteredTraders.map((trader) => (
+            <TraderCard
+              key={trader.id}
+              trader={trader}
+              isFollowing={user?.following?.includes(trader.id) || false}
+              onFollow={() => followTrader(trader.id)}
+              onUnfollow={() => unfollowTrader(trader.id)}
+            />
+          ))}
         </div>
       </div>
-
-      <div className="grid grid-cols-1 gap-6">
-        {filteredTraders.map((trader) => (
-          <TraderCard
-            key={trader.id}
-            trader={trader}
-            isFollowing={false} // TODO: Implement following status
-            onFollow={() => followTrader(trader.id)}
-            onUnfollow={() => unfollowTrader(trader.id)}
-          />
-        ))}
-      </div>
-    </div>
+    </Layout>
   );
 };
 
